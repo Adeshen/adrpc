@@ -7,48 +7,48 @@ import (
 
 //客户端数据结构
 type Call struct {
-	method string
-	args   interface{}
-	reply  interface{}
-	seq    int
+	Method string
+	Args   interface{}
+	Reply  interface{} //需要填写答案时使用
+	Seq    int
 }
 
 type Client struct {
-	conn net.Conn
-	seq  int
-	call chan *Call
+	Conn     net.Conn //net.Dial() 创建连接
+	Seq      int
+	Callchan chan *Call
 }
 
 //-----------
 
 //负载均衡客户端管理
 type ClientMaster struct {
-	client map[string]*Client
+	ClientMap map[string]*Client
 }
 
 //-----------
 
 //服务端数据结构
 type Request struct {
-	method string
-	args   interface{}
-	reply  interface{}
-	seq    int
+	Method string
+	Args   interface{}
+	Reply  interface{}
+	Seq    int
 }
 
 type Service struct {
-	name    string
-	methods map[string]*Method
+	Name    string
+	Methods map[string]*Method
 }
 
 type Method struct {
-	name string
-	fun  reflect.Value
+	Name string
+	Fun  reflect.Value
 }
 
 type Server struct {
-	services map[string]*Service
-	conn     net.Conn
+	Services map[string]*Service
+	Conn     net.Conn
 }
 
 ///----------
