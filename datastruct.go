@@ -56,5 +56,5 @@ type Server struct {
 //注册中心+服务器负载分配
 type Register struct {
 	servers    map[string]string //service.method -> addr
-	serverload map[string]int    // addr -> load
+	serverload map[string]int    // addr -> load value
 }
