@@ -1,7 +1,7 @@
 package adrpc
 
 import (
-	"net"
+	"adrpc/codec"
 	"reflect"
 )
 
@@ -14,7 +14,8 @@ type Call struct {
 }
 
 type Client struct {
-	Conn     net.Conn //net.Dial() 创建连接
+	// Conn     net.Conn //net.Dial() 创建连接
+	NetIO    codec.Codec
 	Seq      int
 	Callchan chan *Call
 }
@@ -31,24 +32,27 @@ type ClientMaster struct {
 //服务端数据结构
 type Request struct {
 	Method string
-	Args   interface{}
-	Reply  interface{}
+	Args   reflect.Value
+	Reply  reflect.Value
 	Seq    int
 }
 
-type Service struct {
-	Name    string
-	Methods map[string]*Method
+type service struct { //动态调用函数部分
+	Name   string
+	Typ    reflect.Type
+	Rcvr   reflect.Value
+	Method map[string]*methodType
 }
 
-type Method struct {
-	Name string
-	Fun  reflect.Value
+type methodType struct { //动态调用函数
+	method    reflect.Method
+	ArgType   reflect.Type
+	ReplyType reflect.Type
+	numCalls  uint64
 }
 
 type Server struct {
-	Services map[string]*Service
-	Conn     net.Conn
+	Services map[string]*service
 }
 
 ///----------
@@ -58,3 +62,9 @@ type Register struct {
 	servers    map[string]string //service.method -> addr
 	serverload map[string]int    // addr -> load value
 }
+
+//---------------
+
+//编码器
+
+//采用json、god两种编码模式
