@@ -19,7 +19,7 @@ func (c *JsonCodec) Close() error {
 }
 
 //解码头部  docode header
-func (c *JsonCodec) ReadHeader(h *Header) error {
+func (c *JsonCodec) ReadHeader(h interface{}) error {
 	return c.dec.Decode(h)
 }
 
@@ -29,7 +29,7 @@ func (c *JsonCodec) ReadBody(body interface{}) error {
 }
 
 //
-func (c *JsonCodec) Write(h *Header, body interface{}) (err error) {
+func (c *JsonCodec) Write(h interface{}, body interface{}) (err error) {
 	//最后执行  压入栈钟倒序执行
 	defer func() {
 		_ = c.buf.Flush()
@@ -39,7 +39,7 @@ func (c *JsonCodec) Write(h *Header, body interface{}) (err error) {
 	}()
 	//编码失败
 	if err := c.enc.Encode(h); err != nil {
-		log.Println("rpc codec:T", *h)
+		log.Println("rpc codec:T", h)
 		log.Println("rpc codec: json error encoding header:", err)
 		return err
 	}

@@ -3,6 +3,7 @@ package adrpc
 import (
 	"adrpc/codec"
 	"reflect"
+	"sync"
 )
 
 //客户端数据结构
@@ -29,30 +30,53 @@ type ClientMaster struct {
 
 //-----------
 
-//服务端数据结构
-type Request struct {
-	Method string
-	Args   reflect.Value
-	Reply  reflect.Value
-	Seq    int
+//通信数据格式
+
+type Header struct {
+	ClientName  string
+	Seq         int
+	MagicNumber uint64
+	//用于确定是否来自注册中心的允许,接受到报头是会携带服务端的魔数，以便确认
 }
 
+type Body struct {
+	ServiceMethod string
+	Args          reflect.Value
+	Reply         reflect.Value
+	err           error
+}
+
+//服务端数据结构
+
 type service struct { //动态调用函数部分
-	Name   string
-	Typ    reflect.Type
-	Rcvr   reflect.Value
+	Name string
+	//服务的名字    一般会    服务名.方法名
+	Typ reflect.Type
+	//结构体的类型反射
+	Rcvr reflect.Value
+	//结构体的值反射
 	Method map[string]*methodType
 }
 
 type methodType struct { //动态调用函数
-	method    reflect.Method
-	ArgType   reflect.Type
+	method reflect.Method
+	//函数的反射    调用结构method.Fun.call(所属结构体的反射，参数1的值反射，参数2的值反射....)
+	ArgType reflect.Type
+	//参数类型的反射
 	ReplyType reflect.Type
 	numCalls  uint64
 }
 
 type Server struct {
 	Services map[string]*service
+	mu       sync.Mutex
+
+	ReqN uint64 //完成请求数
+
+	MagicNumber uint64
+
+	sending sync.Mutex
+	//互斥量保证发送时不会冲突
 }
 
 ///----------

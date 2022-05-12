@@ -23,16 +23,16 @@ func init() {
 	NewCodecFuncMap[GobType] = NewGobCodec
 }
 
-type Header struct {
-	ServiceMethod string // format "Service.Method"
-	Seq           uint64 // sequence number chosen by client
-	Error         string
-}
+// type Header struct {
+// 	ServiceMethod string // format "Service.Method"
+// 	Seq           uint64 // sequence number chosen by client
+// 	Error         string
+// }
 
 //Can use different impl
 type Codec interface {
 	io.Closer
-	ReadHeader(*Header) error
+	ReadHeader(interface{}) error
 	ReadBody(interface{}) error
-	Write(*Header, interface{}) error
+	Write(interface{}, interface{}) error
 }
