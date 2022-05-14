@@ -3,6 +3,7 @@ package adrpc
 import (
 	"adrpc/codec"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"time"
@@ -36,19 +37,12 @@ func (client *Client) AddCall(serviceMethod string, args interface{}, reply inte
 		Args:   args,
 		Reply:  reply,
 	}
-
 	client.Mu.Lock()
 	call.Seq = client.Seq
 	client.Seq++
 	client.Pending[call.Seq] = &call
 	client.Mu.Unlock()
 	return &call
-}
-
-type B struct {
-	Args  interface{}
-	Reply interface{}
-	err   error
 }
 
 func (client *Client) Send(id uint64, MagicNumber uint64, call *Call) {
@@ -58,17 +52,13 @@ func (client *Client) Send(id uint64, MagicNumber uint64, call *Call) {
 		Clientid:      id,
 		ServiceMethod: call.Method,
 	}
-
-	// b := Body{
-	// 	Args:  reflect.ValueOf(call.Args),
-	// 	Reply: reflect.ValueOf(call.Reply),
-	// 	err:   nil,
-	// }
-	b := B{
-		Args: (call.Args),
+	b := Body{
+		Args:  (call.Args),
+		Reply: nil,
+		err:   nil,
 	}
-
-	client.NetIO.Write(&h, &b)
+	fmt.Println("B.ARGS", b.Args)
+	client.NetIO.Write(&h, b.Args)
 }
 
 func (client *Client) Receive() (*Header, *Body) {

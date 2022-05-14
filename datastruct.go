@@ -18,7 +18,9 @@ type Client struct {
 	// Conn     net.Conn //net.Dial() 创建连接
 	NetIO    codec.Codec
 	Seq      int
+	Mu       sync.Mutex
 	Callchan chan *Call
+	Pending  map[int]*Call
 }
 
 //-----------
@@ -33,20 +35,28 @@ type ClientMaster struct {
 //通信数据格式
 
 type Header struct {
-	ClientName  string
-	Seq         int
-	MagicNumber uint64
+	Clientid      uint64
+	Seq           int
+	ServiceMethod string
+	MagicNumber   uint64
 	//用于确定是否来自注册中心的允许,接受到报头是会携带服务端的魔数，以便确认
 }
 
 type Body struct {
-	ServiceMethod string
-	Args          reflect.Value
-	Reply         reflect.Value
-	err           error
+	Args  interface{}
+	Reply interface{}
+	err   error
 }
 
 //服务端数据结构
+
+type Request struct {
+	RH      *Header
+	Args    reflect.Value
+	Reply   reflect.Value
+	Service *service
+	Methodt *methodType
+}
 
 type service struct { //动态调用函数部分
 	Name string
@@ -83,8 +93,8 @@ type Server struct {
 
 //注册中心+服务器负载分配
 type Register struct {
-	servers    map[string]string //service.method -> addr
-	serverload map[string]int    // addr -> load value
+	Servers    map[string]string //service.method -> addr
+	Serverload map[string]int    // addr -> load value
 }
 
 //---------------

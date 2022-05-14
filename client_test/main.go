@@ -12,9 +12,14 @@ type S struct {
 	k int
 }
 
+type Args struct {
+	Num1 int
+	Num2 int
+}
+
 //第一个输入参数是传入结构，第二个参数是返回数指针
-func (ss S) Add(a [2]int, b *int) error {
-	*b = a[0] + a[1]
+func (ss S) Add(a Args, b *int) error {
+	*b = a.Num1 + a.Num2
 	return nil
 }
 
@@ -32,13 +37,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("创建客户端失败")
 	}
-	var args = [2]int{1, 16}
+	var args = Args{
+		Num1: 10,
+		Num2: 2,
+	}
 	var reply = new(int)
-	call := client.AddCall("S.Add", args, reply)
+	call := client.AddCall("S.Add", &args, reply)
 	fmt.Println(call)
 	client.Send(1, 12345, call)
 	H, B := client.Receive()
 	fmt.Print("接受完毕：")
-	fmt.Println(*H, *B)
+
+	fmt.Println(*H, (*B).Reply)
 
 }

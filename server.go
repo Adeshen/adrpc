@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"reflect"
 	"strings"
 )
 
@@ -30,6 +31,7 @@ func (server *Server) StartServer(port string) {
 
 		h, b, s, m := server.Read(*code)
 		fmt.Println(b.Args)
+
 		if h == nil {
 			log.Println("head is nil   ")
 			continue
@@ -39,9 +41,25 @@ func (server *Server) StartServer(port string) {
 			log.Println("from " + string(h.Clientid) + " body is nil")
 			continue
 		}
-		server.GetReply(s, m, b)
+		req := server.NewRequest(h, b, s, m)
 
-		server.Send(*code, *h, *b)
+		req.Args = req.Methodt.newArgv()
+		req.Reply = req.Methodt.newReplyv()
+
+		// make sure that argvi is a pointer, ReadBody need a pointer as parameter
+		//原来真的是可以先预设反射类型，然后把用编码器把interface编码成字节数组，然后解码到反射的输入接口
+		argvi := req.Args.Interface()
+		if req.Args.Type().Kind() != reflect.Ptr {
+			argvi = req.Args.Addr().Interface()
+		}
+		if err = (*code).ReadBody(argvi); err != nil {
+			log.Println("rpc server: read body err:", err)
+			return
+		}
+		// fmt.Println("argvi:", argvi)
+		// fmt.Println("接受到的args:", req.Args.Interface())
+		server.GetReply(req)
+		server.Send(*code, req)
 	}
 }
 
@@ -84,17 +102,8 @@ func (server *Server) Read(request codec.Codec) (*Header, *Body, *service, *meth
 
 		return &h, nil, nil, nil
 	}
-
-	var body Body
 	service, method := server.Find(h.ServiceMethod)
-	server.PreBody(method, &body)
-	body.Args = method.newArgv()
-	argvi := body.Args.Interface()
-
-	// if body.Args.Type().Kind() != reflect.Ptr {
-	// 	argvi = body.Args.Addr().Interface()
-	// }
-	err = request.ReadBody(&argvi)
+	body := Body{}
 	// err = request.ReadBody(&body)
 
 	if err != nil {
@@ -119,15 +128,23 @@ func (server *Server) Find(serviceMethod string) (*service, *methodType) {
 	return servicex, method
 }
 
-func (server *Server) PreBody(method *methodType, body *Body) *Body {
-	body.Args = method.newArgv()
-	body.Reply = method.newReplyv()
-	return body
+func (server *Server) NewRequest(h *Header, b *Body, s *service, m *methodType) *Request {
+	req := Request{
+		RH:      h,
+		Args:    m.newArgv(), //而此时有参数类型是interface{},我想把它转化想要的已经存储在m.ArgType的类型
+		Reply:   m.newReplyv(),
+		Service: s,
+		Methodt: m,
+	}
+
+	// fmt.Println("反射args：", req.Args.Interface())
+	return &req
 }
 
-func (server *Server) GetReply(servicex *service, method *methodType, prebody *Body) {
-	servicex.Call(method, prebody.Args, prebody.Reply)
-	prebody.err = nil
+func (server *Server) GetReply(request *Request) {
+	// servicex.Call(method, request.Args, request.Reply)
+	// prebody.err = nil
+	request.Service.Call(request.Methodt, request.Args, request.Reply)
 }
 
 // func (server *Server) Handle(body *Body) error {
@@ -154,10 +171,14 @@ func (server *Server) GetReply(servicex *service, method *methodType, prebody *B
 // 	return nil
 // }
 
-func (server *Server) Send(code codec.Codec, h Header, body Body) error {
+func (server *Server) Send(code codec.Codec, req *Request) error {
+	b := Body{
+		Args:  req.Args.Interface(),
+		Reply: req.Reply.Interface(),
+		err:   nil,
+	}
 	server.sending.Lock()
-	replyiv := body.Reply.Interface()
-	err := code.Write(&h, &replyiv)
+	err := code.Write(&req.RH, &b)
 	server.sending.Unlock()
 	return err
 }

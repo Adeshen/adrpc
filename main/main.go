@@ -1,11 +1,8 @@
 package main
 
 import (
-	"adrpc"
+	"encoding/json"
 	"fmt"
-	"reflect"
-	"sync"
-	"time"
 )
 
 type Student struct {
@@ -26,64 +23,33 @@ func (s Student) Sfo() {
 type S struct {
 	k int
 }
+type Args struct {
+	Num1 int
+	Num2 int
+}
 
 //第一个输入参数是传入结构，第二个参数是返回数指针
-func (ss S) Add(a [2]int, b *int) error {
-	*b = a[0] + a[1]
+func (ss S) Add(a Args, b *int) error {
+	*b = a.Num1 + b.Num2
 	return nil
 }
 
+type Monster struct {
+	Name     string
+	Age      int
+	Birthday string
+	Sal      float64
+}
+
 func main() {
-	fmt.Println("嗨客网(www.haicoder.net)")
-	var p = Student{
-		Name:  "HaiCoder",
-		Age:   10,
-		Score: 99,
+
+	jsonStr := "{\"Name\":\"铁牛\", \"Age\":18,\"Birthday\":\"2020-02-02\",\"Sal\":1}"
+	// 定义一个Monster实例
+	var monster Monster
+	err := json.Unmarshal([]byte(jsonStr), &monster)
+	if err != nil {
+		fmt.Printf("unarshar err=%v", err)
 	}
-	personValue := reflect.ValueOf(p)
-
-	infoFunc := personValue.MethodByName("Info")
-	infoFunc.Call([]reflect.Value{})
-
-	fmt.Println(personValue.NumMethod())
-	fmt.Println(personValue.Type().Method(0).Func.Call([]reflect.Value{personValue}))
-
-	m := sync.Map{}
-	fmt.Println(m.Load("dasd"))
-	m.LoadOrStore("d", 1)
-	fmt.Println(m.Load("d"))
-	m.Delete("d")
-	fmt.Println(m.Load("d"))
-
-	done := make(chan struct{}, 1)
-
-	go func() {
-		// 发送HTTP请求
-		time.Sleep(1233 * time.Millisecond)
-		done <- struct{}{}
-	}()
-
-	select {
-	case <-done:
-		fmt.Println("call successfully!!!")
-
-	case <-time.After(time.Duration(800 * time.Millisecond)):
-		fmt.Println("timeout!!!")
-	}
-
-	ss := adrpc.NewServer(1231)
-	ss.Register(S{})
-	go ss.StartServer(":1234")
-
-	a := reflect.ValueOf([2]int{1, 16})
-
-	var r = reflect.ValueOf(new(int))
-	body := adrpc.Body{
-		ServiceMethod: "S.Add",
-		Args:          a,
-		Reply:         r,
-	}
-	ss.Handle(&body)
-	fmt.Println(body.Reply.Elem())
+	fmt.Printf("反序列化后 monster=%v\n", monster)
 
 }
