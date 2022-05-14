@@ -2,7 +2,7 @@ package adrpc
 
 import (
 	"adrpc/codec"
-	"errors"
+	"fmt"
 	"log"
 	"net"
 	"strings"
@@ -23,13 +23,23 @@ func (server *Server) StartServer(port string) {
 
 	listen, err := net.Listen("tcp", port)
 	if err != nil {
+		fmt.Print("server listen create failed")
 	}
 	for {
 		code := server.Accept(listen, codec.JsonType)
 
-		h, b, _ := server.Read(*code)
+		h, b, s, m := server.Read(*code)
+		fmt.Println(b.Args)
+		if h == nil {
+			log.Println("head is nil   ")
+			continue
+		}
 
-		server.Handle(b)
+		if b == nil {
+			log.Println("from " + string(h.Clientid) + " body is nil")
+			continue
+		}
+		server.GetReply(s, m, b)
 
 		server.Send(*code, *h, *b)
 	}
@@ -55,13 +65,13 @@ func (server *Server) Accept(lis net.Listener, encodingType codec.Type) *codec.C
 	return &request
 }
 
-func (server *Server) Read(request codec.Codec) (*Header, *Body, error) {
+func (server *Server) Read(request codec.Codec) (*Header, *Body, *service, *methodType) {
 	var h Header
 	var err error
-	err = request.ReadHeader(h)
+	err = request.ReadHeader(&h)
 	if err != nil {
 		log.Println("server rpc read header error", err)
-		return nil, nil, err
+		return nil, nil, nil, nil
 	}
 
 	server.mu.Lock()
@@ -70,47 +80,84 @@ func (server *Server) Read(request codec.Codec) (*Header, *Body, error) {
 
 	if ok {
 		log.Println("server rpc read header magicnumber is incorrect")
-		err = errors.New("magicnumber is incorrect")
-		return &h, nil, err
+		// err = errors.New("magicnumber is incorrect")
+
+		return &h, nil, nil, nil
 	}
 
 	var body Body
-	err = request.ReadBody(body)
+	service, method := server.Find(h.ServiceMethod)
+	server.PreBody(method, &body)
+	body.Args = method.newArgv()
+	argvi := body.Args.Interface()
+
+	// if body.Args.Type().Kind() != reflect.Ptr {
+	// 	argvi = body.Args.Addr().Interface()
+	// }
+	err = request.ReadBody(&argvi)
+	// err = request.ReadBody(&body)
+
 	if err != nil {
 		log.Println("server rpc read header error", err)
-		return &h, nil, err
+		return &h, &body, service, method
 	}
-	return &h, &body, nil
+
+	return &h, &body, service, method
 }
 
-func (server *Server) Handle(body *Body) error {
-	dot := strings.LastIndex(body.ServiceMethod, ".")
-	serviceName, methodName := body.ServiceMethod[:dot], body.ServiceMethod[dot+1:]
-
+func (server *Server) Find(serviceMethod string) (*service, *methodType) {
+	dot := strings.LastIndex(serviceMethod, ".")
+	serviceName, methodName := serviceMethod[:dot], serviceMethod[dot+1:]
 	servicex, err := server.Services[serviceName]
-
 	if err == false {
-		log.Println("server rpc no service")
-		body.err = errors.New("server rpc no service")
-		return body.err
+		return nil, nil
 	}
-
 	method, err := servicex.Method[methodName]
 	if err == false {
-		log.Println("server rpc service:", servicex.Name, "has  no ", methodName)
-		body.err = errors.New("server rpc service:" + servicex.Name + "has  no " + methodName)
-
-		return body.err
+		return servicex, nil
 	}
-	servicex.Call(method, body.Args, body.Reply)
-	body.err = nil
-
-	return nil
+	return servicex, method
 }
+
+func (server *Server) PreBody(method *methodType, body *Body) *Body {
+	body.Args = method.newArgv()
+	body.Reply = method.newReplyv()
+	return body
+}
+
+func (server *Server) GetReply(servicex *service, method *methodType, prebody *Body) {
+	servicex.Call(method, prebody.Args, prebody.Reply)
+	prebody.err = nil
+}
+
+// func (server *Server) Handle(body *Body) error {
+// 	fmt.Println(*body)
+// 	dot := strings.LastIndex(body.ServiceMethod, ".")
+// 	serviceName, methodName := body.ServiceMethod[:dot], body.ServiceMethod[dot+1:]
+
+// 	servicex, err := server.Services[serviceName]
+
+// 	if err == false {
+// 		log.Println("server rpc no service")
+// 		body.err = errors.New("server rpc no service")
+// 		return body.err
+// 	}
+
+// 	method, err := servicex.Method[methodName]
+// 	if err == false {
+// 		log.Println("server rpc service:", servicex.Name, "has  no ", methodName)
+// 		body.err = errors.New("server rpc service:" + servicex.Name + "has  no " + methodName)
+
+// 		return body.err
+// 	}
+
+// 	return nil
+// }
 
 func (server *Server) Send(code codec.Codec, h Header, body Body) error {
 	server.sending.Lock()
-	err := code.Write(&h, &body)
+	replyiv := body.Reply.Interface()
+	err := code.Write(&h, &replyiv)
 	server.sending.Unlock()
 	return err
 }
